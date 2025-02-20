@@ -77,7 +77,7 @@ public class DriverUserService {
     }
 
     public ResponseResult<OrderDriverResponse> getAvailableDriver(Long carId) {
-        System.out.println(carId);
+        System.out.println("carid:"+ carId);
         QueryWrapper<DriverCarBindingRelationship> queryWrapper = new QueryWrapper();
         queryWrapper.eq("car_id", carId);
         queryWrapper.eq("state", DriverCarConstant.DRIVER_CAR_BIND);
@@ -98,7 +98,7 @@ public class DriverUserService {
             DriverUser driverUser = driverUserMapper.selectOne(queryWrapperDriverUser);
 
             QueryWrapper<Car> queryWrapperCar = new QueryWrapper();
-            queryWrapperCar.eq("car_id", carId);
+            queryWrapperCar.eq("id", carId);
             Car car = carMapper.selectOne(queryWrapperCar);
 
             OrderDriverResponse orderDriverResponse = new OrderDriverResponse();

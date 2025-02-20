@@ -1,5 +1,6 @@
 package com.wang.service.order.remote;
 
+import com.wang.common.dto.Car;
 import com.wang.common.dto.ResponseResult;
 import com.wang.common.response.OrderDriverResponse;
 import org.springframework.cloud.openfeign.FeignClient;
@@ -21,4 +22,7 @@ public interface ServiceDriverUserClient {
 
     @RequestMapping(method = RequestMethod.GET, value ="/get-available-driver/{carId}")
     public ResponseResult<OrderDriverResponse> getAvailableDriver(@PathVariable("carId") Long carId);
+
+    @RequestMapping(method = RequestMethod.GET, value = "/getCar")
+    public ResponseResult<Car> getDriverUserByDriverId(Long carId);
 }

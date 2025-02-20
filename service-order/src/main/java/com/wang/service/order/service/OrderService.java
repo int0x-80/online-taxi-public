@@ -3,6 +3,7 @@ package com.wang.service.order.service;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.wang.common.constant.CommonStatusEnum;
 import com.wang.common.constant.DriverCarConstant;
+import com.wang.common.constant.IdentityConstant;
 import com.wang.common.constant.OrderConstant;
 import com.wang.common.dto.Car;
 import com.wang.common.dto.OrderInfo;
@@ -12,16 +13,22 @@ import com.wang.common.request.OrderRequest;
 import com.wang.common.response.OrderDriverResponse;
 import com.wang.common.response.TerminalResponse;
 import com.wang.common.utils.RedisUtils;
+import com.wang.service.order.config.RedisConfig;
 import com.wang.service.order.mapper.OrderMapper;
 import com.wang.service.order.remote.ServiceDriverUserClient;
 import com.wang.service.order.remote.ServiceMapClient;
 import com.wang.service.order.remote.ServicePriceClient;
+import com.wang.service.order.remote.ServiceSsePushClient;
 import net.sf.json.JSONArray;
 import net.sf.json.JSONObject;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cloud.util.random.CachedRandomPropertySourceAutoConfiguration;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
+
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -52,6 +59,12 @@ public class OrderService {
     @Autowired
     private ServiceMapClient serviceMapClient;
 
+    @Autowired
+    private RedisConfig redisConfig;
+
+    @Autowired
+    private ServiceSsePushClient serviceSsePushClient;
+
 
     public ResponseResult add(OrderRequest orderRequest) {
 
@@ -76,10 +89,9 @@ public class OrderService {
         }
 
         // 查询正在进行的订单
-        if(isPassengerOrderOngoing(orderRequest)) {
+        if (isPassengerOrderOngoing(orderRequest)) {
             return ResponseResult.fail(CommonStatusEnum.ORDER_CAN_NOT_CREATE.getCode(), CommonStatusEnum.ORDER_CAN_NOT_CREATE.getValue());
         }
-
 
 
         OrderInfo orderInfo = new OrderInfo();
@@ -91,33 +103,54 @@ public class OrderService {
         orderInfo.setGmtCreate(now);
         orderInfo.setGmtModified(now);
 
-        dispatchRealTimeOrder(orderInfo);
-
         orderMapper.insert(orderInfo);
+
+        for (int i = 0; i < 6; i++) {
+            int result = dispatchRealTimeOrder(orderInfo);
+            if (result == 1) {
+                break;
+            }
+            try {
+                Thread.sleep(5000);
+            } catch (Exception e) {
+
+            }
+        }
+
         return ResponseResult.success();
     }
 
-    public void dispatchRealTimeOrder(OrderInfo orderInfo) {
+    public int dispatchRealTimeOrder(OrderInfo orderInfo) {
+        int result = 0;
         String longitude = orderInfo.getDepLongitude();
         String latitude = orderInfo.getDepLatitude();
 
         String center = latitude + "," + longitude;
         for (int radius = 1; radius <= 5; radius += 2) {
-            ResponseResult<List<TerminalResponse>> around = serviceMapClient.around(center, radius* 1000 + "");
+            ResponseResult<List<TerminalResponse>> around = serviceMapClient.around(center, radius * 1000 + "");
             List<TerminalResponse> aroundList = around.getData();
 
             for (TerminalResponse data : aroundList) {
+
                 Long carId = data.getCarId();
+                if (carId == 0) {
+                    continue;
+                }
                 String carLongitude = data.getLongitude();
                 String carLatitude = data.getLatitude();
-
                 ResponseResult<OrderDriverResponse> availableDriver = serviceDriverUserClient.getAvailableDriver(carId);
                 OrderDriverResponse driverData = availableDriver.getData();
                 Long driverId = driverData.getDriverId();
-                if(isDriverOrderGoing(driverId) > 0) {
+
+                // synchronized ((driverId + "").intern()) {
+                String intern = (driverId + "").intern();
+                RedissonClient redissonClient = redisConfig.redissonClient();
+                RLock lock = redissonClient.getLock(intern);
+                lock.lock();
+                if (isDriverOrderGoing(driverId) > 0) {
+                    lock.unlock();
                     continue;
                 }
-
                 orderInfo.setDriverId(driverId);
                 orderInfo.setCarId(driverData.getCarId());
                 orderInfo.setDriverPhone(driverData.getDriverPhone());
@@ -129,11 +162,40 @@ public class OrderService {
                 orderInfo.setOrderStatus(OrderConstant.ORDER_DRIVER_RECEIVE_ORDER);
 
                 orderMapper.updateById(orderInfo);
+                JSONObject jsonObjectDriver = new JSONObject();
+                jsonObjectDriver.put("passengerId", orderInfo.getPassengerId());
+                jsonObjectDriver.put("passengerPhone", orderInfo.getPassengerPhone());
+                jsonObjectDriver.put("departure", orderInfo.getDeparture());
+                jsonObjectDriver.put("depLongitude", orderInfo.getDepLongitude());
+                jsonObjectDriver.put("depLatitude", orderInfo.getDepLatitude());
+                jsonObjectDriver.put("destination", orderInfo.getDestination());
+                jsonObjectDriver.put("destLongitude", orderInfo.getDestLongitude());
+                jsonObjectDriver.put("destLatitude", orderInfo.getDestLatitude());
 
+                serviceSsePushClient.push(driverId, IdentityConstant.DRIVER_IDENTITY, jsonObjectDriver.toString());
+
+                JSONObject jsonObjectUser = new JSONObject();
+                jsonObjectUser.put("driverId", orderInfo.getDriverId());
+                jsonObjectUser.put("driverPhone", orderInfo.getDriverPhone());
+                jsonObjectUser.put("vehicleNo", orderInfo.getVehicleNo());
+
+                ResponseResult<Car> carData = serviceDriverUserClient.getDriverUserByDriverId(orderInfo.getCarId());
+                Car car = carData.getData();
+
+                jsonObjectUser.put("brand", car.getBrand());
+                jsonObjectUser.put("model", car.getModel());
+                jsonObjectUser.put("plateColor", car.getPlateColor());
+                jsonObjectUser.put("receiveOrderCarLongitude", orderInfo.getReceiveOrderCarLongitude());
+                jsonObjectUser.put("receiveOrderCarLatitude", orderInfo.getReceiveOrderCarLatitude());
+
+                serviceSsePushClient.push(orderInfo.getPassengerId(), IdentityConstant.PASSENGER_IDENTITY, jsonObjectUser.toString());
+
+                lock.unlock();
+                result = 1;
                 break;
             }
         }
-        System.out.println("fail");
+        return result;
     }
 
     private boolean isPriceRuleExists(OrderRequest orderRequest) {

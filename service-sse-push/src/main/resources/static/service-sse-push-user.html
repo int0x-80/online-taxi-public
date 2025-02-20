@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>DriverClient</title>
+</head>
+<body>
+<button onclick="setMessage('Hello World')">Click Me</button>
+<button onclick="close()">Click Me</button>
+<div id="message">
+
+</div>
+
+<script>
+    useId = "1879033948404961282";
+    identity = "passenger";
+    let source;
+    if (window.EventSource) {
+        console.info("EventSource supported")
+        source = new EventSource("http://localhost:9000/connect?userId=" + useId + "&identity=" + identity);
+
+        source.addEventListener('message', function (e) {
+            let content = e.data;
+            setMessage(content);
+        })
+    }
+
+    function setMessage(message) {
+        document.getElementById("message").innerHTML += (message + "<br>");
+    }
+
+    function close() {
+        source.close();
+        httpRequest = new XMLHttpRequest();
+        httpRequest.open("GET", "http://localhost:9000/disconnect?userId=" + useId + "&identity=" + identity);
+        httpRequest.send();
+    }
+
+</script>
+
+</body>
+</html>
