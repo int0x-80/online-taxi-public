@@ -12,6 +12,7 @@ import com.wang.common.dto.ResponseResult;
 import com.wang.common.request.OrderRequest;
 import com.wang.common.response.OrderDriverResponse;
 import com.wang.common.response.TerminalResponse;
+import com.wang.common.response.TrsearchResponse;
 import com.wang.common.utils.RedisUtils;
 import com.wang.service.order.config.RedisConfig;
 import com.wang.service.order.mapper.OrderMapper;
@@ -30,6 +31,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -116,7 +118,6 @@ public class OrderService {
 
             }
         }
-
         return ResponseResult.success();
     }
 
@@ -141,6 +142,16 @@ public class OrderService {
                 ResponseResult<OrderDriverResponse> availableDriver = serviceDriverUserClient.getAvailableDriver(carId);
                 OrderDriverResponse driverData = availableDriver.getData();
                 Long driverId = driverData.getDriverId();
+                String driverPhone = driverData.getDriverPhone();
+                String licenseId = driverData.getLicenseId();
+                String vehicleTypeFromCar = driverData.getVehicleType();
+                String vehicleNo = driverData.getVehicleNo();
+
+                String vehicleType = orderInfo.getVehicleType();
+
+                if (!vehicleType.trim().equals(vehicleTypeFromCar.trim())) {
+                    continue;
+                }
 
                 // synchronized ((driverId + "").intern()) {
                 String intern = (driverId + "").intern();
@@ -179,7 +190,7 @@ public class OrderService {
                 jsonObjectUser.put("driverPhone", orderInfo.getDriverPhone());
                 jsonObjectUser.put("vehicleNo", orderInfo.getVehicleNo());
 
-                ResponseResult<Car> carData = serviceDriverUserClient.getDriverUserByDriverId(orderInfo.getCarId());
+                ResponseResult<Car> carData = serviceDriverUserClient.getCarByDriverId(orderInfo.getCarId());
                 Car car = carData.getData();
 
                 jsonObjectUser.put("brand", car.getBrand());
@@ -225,7 +236,6 @@ public class OrderService {
         } else {
             stringRedisTemplate.opsForValue().setIfAbsent(deviceKey, "1", 1L, TimeUnit.HOURS);
         }
-
         return false;
     }
 
@@ -246,7 +256,6 @@ public class OrderService {
         if (count > 0) {
             return true;
         }
-
         return false;
     }
 
@@ -261,5 +270,86 @@ public class OrderService {
         );
 
         return orderMapper.selectCount(queryWrapper);
+    }
+
+    public ResponseResult toPickUpPassenger(OrderRequest orderRequest) {
+        Long orderId = orderRequest.getOrderId();
+        LocalDateTime toPickUpPassengerTime = orderRequest.getToPickUpPassengerTime();
+        String toPickUpPassengerLongitude = orderRequest.getToPickUpPassengerLongitude();
+        String toPickUpPassengerLatitude = orderRequest.getToPickUpPassengerLatitude();
+        String toPickUpPassengerAddress = orderRequest.getToPickUpPassengerAddress();
+        QueryWrapper queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("id", orderId);
+
+        OrderInfo orderInfo = orderMapper.selectOne(queryWrapper);
+        orderInfo.setToPickUpPassengerAddress(toPickUpPassengerAddress);
+        orderInfo.setToPickUpPassengerTime(toPickUpPassengerTime);
+        orderInfo.setToPickUpPassengerLongitude(toPickUpPassengerLongitude);
+        orderInfo.setToPickUpPassengerLatitude(toPickUpPassengerLatitude);
+        orderInfo.setOrderStatus(OrderConstant.ORDER_TO_PICK_UP_PASSENGER);
+
+        orderMapper.updateById(orderInfo);
+        return ResponseResult.success();
+    }
+
+    public ResponseResult arrivedDeparture(OrderRequest orderRequest) {
+        Long orderId = orderRequest.getOrderId();
+        QueryWrapper queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("id", orderId);
+        OrderInfo orderInfo = orderMapper.selectOne(queryWrapper);
+        orderInfo.setOrderStatus(OrderConstant.ORDER_DRIVER_ARRIVE_DEPARTURE);
+        orderInfo.setDriverArrivedDepartureTime(LocalDateTime.now());
+        orderMapper.updateById(orderInfo);
+        return ResponseResult.success();
+    }
+
+    public ResponseResult pickUpPassenger(OrderRequest orderRequest) {
+        Long orderId = orderRequest.getOrderId();
+        String pickUpPassengerLongitude = orderRequest.getPickUpPassengerLongitude();
+        String pickUpPassengerLatitude = orderRequest.getPickUpPassengerLatitude();
+        QueryWrapper queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("id", orderId);
+        OrderInfo orderInfo = orderMapper.selectOne(queryWrapper);
+        orderInfo.setOrderStatus(OrderConstant.ORDER_PICK_UP_PASSENGER);
+        orderInfo.setPickUpPassengerTime(LocalDateTime.now());
+        orderInfo.setPickUpPassengerLongitude(pickUpPassengerLongitude);
+        orderInfo.setPickUpPassengerLatitude(pickUpPassengerLatitude);
+        orderMapper.updateById(orderInfo);
+
+        return ResponseResult.success();
+    }
+
+    public ResponseResult arrivedDestination(OrderRequest orderRequest) {
+        Long orderId = orderRequest.getOrderId();
+        String passengerGetOffLongitude = orderRequest.getPassengerGetOffLongitude();
+        String pickUpPassengerLatitude = orderRequest.getPassengerGetOffLatitude();
+        QueryWrapper queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("id", orderId);
+        OrderInfo orderInfo = orderMapper.selectOne(queryWrapper);
+
+        orderInfo.setOrderStatus(OrderConstant.ORDER_ARRIVE_DESTINATION);
+        orderInfo.setPassengerGetOffLongitude(passengerGetOffLongitude);
+        orderInfo.setPassengerGetOffLatitude(pickUpPassengerLatitude);
+        orderInfo.setPassengerGetOffTime(LocalDateTime.now());
+
+        ResponseResult<Car> carByDriverId = serviceDriverUserClient.getCarByDriverId(orderInfo.getCarId());
+        Car data = carByDriverId.getData();
+
+        ResponseResult<TrsearchResponse> trsearch = serviceMapClient.trsearch(data.getTid(),
+                orderInfo.getPickUpPassengerTime().toInstant(ZoneOffset.of("+8")).toEpochMilli(),
+                LocalDateTime.now().toInstant(ZoneOffset.of("+8")).toEpochMilli());
+        TrsearchResponse data1 = trsearch.getData();
+        orderInfo.setDriveMile(data1.getDriverMail());
+        orderInfo.setDriveTime(data1.getDriverTime());
+
+        Long driveMile = orderInfo.getDriveMile();
+        Long driveTime = orderInfo.getDriveTime();
+
+        ResponseResult<Double> responseResult = servicePriceClient.calculatePrice(driveMile, driveTime, orderInfo.getAddress(), orderInfo.getVehicleType());
+
+        orderInfo.setPrice(responseResult.getData());
+        orderMapper.updateById(orderInfo);
+
+        return ResponseResult.success();
     }
 }

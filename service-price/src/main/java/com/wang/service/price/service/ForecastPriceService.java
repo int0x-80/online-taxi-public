@@ -12,6 +12,7 @@ import com.wang.service.price.mapper.PriceRuleMapper;
 import com.wang.service.price.remote.ServiceMapClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import java.math.BigDecimal;
 import java.util.HashMap;
@@ -102,5 +103,22 @@ public class ForecastPriceService {
         price = priceBigDecimal.setScale(2, BigDecimal.ROUND_HALF_UP).doubleValue();
 
         return price;
+    }
+
+    public ResponseResult<Double> calculatorPrice(Long distance, Long duration, String cityCode, String vehicleType) {
+        QueryWrapper queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("city_code", cityCode);
+        queryWrapper.eq("vehicle_type", vehicleType);
+        queryWrapper.orderByDesc("fare_version");
+
+        List<PriceRule> priceRules = priceRuleMapper.selectList(queryWrapper);
+
+        if (priceRules.isEmpty()) {
+            return ResponseResult.fail(CommonStatusEnum.FARE_NOT_EXIST.getCode(), CommonStatusEnum.FARE_NOT_EXIST.getValue());
+        }
+
+        PriceRule priceRule = priceRules.get(0);
+        double price = calculatorPrice(distance, duration, priceRule);
+        return ResponseResult.success(price);
     }
 }

@@ -6,6 +6,7 @@ import com.wang.service.price.service.ForecastPriceService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -28,7 +29,11 @@ public class ForecastPriceController {
         String cityCode = forecastPriceDto.getCityCode();
         String vehicleType = forecastPriceDto.getVehicleType();
 
-
         return forecastPriceService.forecastPrice(depLongitude, depLatitude, destLongitude, destLatitude, cityCode, vehicleType);
+    }
+
+    @PostMapping("/calculate-price")
+    public ResponseResult<Double> calculatePrice(@RequestParam Long distance, @RequestParam Long duration, @RequestParam String cityCode, @RequestParam String vehicleType) {
+        return forecastPriceService.calculatorPrice(distance, duration, cityCode, vehicleType);
     }
 }

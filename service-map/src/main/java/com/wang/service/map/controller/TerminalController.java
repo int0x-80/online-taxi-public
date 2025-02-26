@@ -3,6 +3,7 @@ package com.wang.service.map.controller;
 import com.wang.common.dto.ResponseResult;
 import com.wang.common.response.ServiceResponse;
 import com.wang.common.response.TerminalResponse;
+import com.wang.common.response.TrsearchResponse;
 import com.wang.service.map.service.ServiceMapService;
 import com.wang.service.map.service.TerminalService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,5 +38,10 @@ public class TerminalController {
         ResponseResult<List<TerminalResponse>> add = terminalService.around(center, radius);
         List<TerminalResponse> data = add.getData();
         return ResponseResult.success(data);
+    }
+
+    @PostMapping("/trsearch")
+    public ResponseResult<TrsearchResponse> trsearch(@RequestParam String tid,@RequestParam Long startTime,@RequestParam Long endTime) {
+        return terminalService.trsearch(tid, startTime, endTime);
     }
 }

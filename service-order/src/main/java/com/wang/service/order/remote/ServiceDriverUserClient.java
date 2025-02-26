@@ -24,5 +24,5 @@ public interface ServiceDriverUserClient {
     public ResponseResult<OrderDriverResponse> getAvailableDriver(@PathVariable("carId") Long carId);
 
     @RequestMapping(method = RequestMethod.GET, value = "/getCar")
-    public ResponseResult<Car> getDriverUserByDriverId(Long carId);
+    public ResponseResult<Car> getCarByDriverId(Long carId);
 }

@@ -22,4 +22,6 @@ public interface ServiceMapClient {
 
     @RequestMapping(method = RequestMethod.POST, value ="/track/add")
     public ResponseResult<TrackResponse> addTrack(@RequestParam String tid);
+
+
 }

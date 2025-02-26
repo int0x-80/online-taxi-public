@@ -7,7 +7,7 @@ import java.time.LocalDateTime;
 
 /**
  * <p>
- * 
+ *
  * </p>
  *
  * @author Wang Yinuo
@@ -65,9 +65,11 @@ public class OrderInfo implements Serializable {
 
     private String vehicleNo;
 
+    private String vehicleType;
+
     private LocalDateTime toPickUpPassengerTime;
 
-    private String toPickUpPassengerLangitude;
+    private String toPickUpPassengerLongitude;
 
     private String toPickUpPassengerLatitude;
 
@@ -77,15 +79,15 @@ public class OrderInfo implements Serializable {
 
     private LocalDateTime pickUpPassengerTime;
 
-    private String pickUpPassengerLangitude;
+    private String pickUpPassengerLongitude;
 
     private String pickUpPassengerLatitude;
 
-    private LocalDateTime passengerGetoffTime;
+    private LocalDateTime passengerGetOffTime;
 
-    private String passengerGetoffLongitude;
+    private String passengerGetOffLongitude;
 
-    private String passengerGetoffLatitude;
+    private String passengerGetOffLatitude;
 
     private LocalDateTime cancelTime;
 
@@ -98,6 +100,8 @@ public class OrderInfo implements Serializable {
     private Long driveTime;
 
     private Integer orderStatus;
+
+    private Double price;
 
     private LocalDateTime gmtCreate;
 

@@ -15,4 +15,5 @@ public class OrderDriverResponse {
     // private String receiveOrderCarLongitude;
     private String licenseId;
     private String vehicleNo;
+    private String vehicleType;
 }

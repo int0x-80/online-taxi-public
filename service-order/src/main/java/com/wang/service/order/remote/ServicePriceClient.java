@@ -18,4 +18,7 @@ public interface ServicePriceClient {
 
     @RequestMapping(method = RequestMethod.GET, value ="/price-rule/is-exist")
     public ResponseResult<Boolean> isPriceExist(@RequestBody PriceRule priceRule);
+
+    @RequestMapping(method = RequestMethod.POST, value ="/calculate-price")
+    public ResponseResult<Double> calculatePrice(@RequestParam Long distance, @RequestParam Long duration, @RequestParam String cityCode, @RequestParam String vehicleType);
 }

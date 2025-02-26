@@ -4,6 +4,7 @@ import com.wang.common.constant.AMapConfigConstant;
 import com.wang.common.dto.ResponseResult;
 import com.wang.common.response.ServiceResponse;
 import com.wang.common.response.TerminalResponse;
+import com.wang.common.response.TrsearchResponse;
 import net.sf.json.JSONArray;
 import net.sf.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -101,5 +102,45 @@ public class TerminalClient {
         }
 
         return ResponseResult.success(list);
+    }
+
+    public ResponseResult<TrsearchResponse> trsearch(String tid, Long startTime, Long endTime) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(AMapConfigConstant.TERMINAL_SEARCH_URL);
+        sb.append("?");
+        sb.append("key=").append(key);
+        sb.append("&");
+        sb.append("sid=").append(sid);
+        sb.append("&");
+        sb.append("tid=").append(tid);
+        sb.append("&");
+        sb.append("starttime=").append(startTime);
+        sb.append("&");
+        sb.append("endtime=").append(endTime);
+
+        ResponseEntity<String> directionEntity = restTemplate.postForEntity(sb.toString(),null,  String.class);
+
+        JSONObject result = JSONObject.fromObject(directionEntity.getBody());
+        JSONObject data = result.getJSONObject("data");
+        int count = data.getInt("count");
+        if (count == 0) {
+            return null;
+        }
+        JSONArray tracks = data.getJSONArray("tracks");
+        long driverMile = 0;
+        long driveTime = 0;
+        for (int i = 0; i < tracks.size(); i++) {
+            JSONObject jsonObject = tracks.getJSONObject(i);
+            long distance = jsonObject.getLong("distance");
+            driverMile += distance;
+
+            long time = jsonObject.getLong("time");
+            time = time / 1000;
+            driveTime += time;
+        }
+        TrsearchResponse trsearchResponse = new TrsearchResponse();
+        trsearchResponse.setDriverMail(driverMile);
+        trsearchResponse.setDriverTime(driveTime);
+        return ResponseResult.success(trsearchResponse);
     }
 }

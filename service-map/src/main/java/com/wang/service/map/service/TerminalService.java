@@ -2,6 +2,7 @@ package com.wang.service.map.service;
 
 import com.wang.common.dto.ResponseResult;
 import com.wang.common.response.TerminalResponse;
+import com.wang.common.response.TrsearchResponse;
 import com.wang.service.map.remote.TerminalClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -24,5 +25,9 @@ public class TerminalService {
 
     public ResponseResult<List<TerminalResponse>> around(String center, String radius) {
         return terminalClient.around(center, radius);
+    }
+
+    public ResponseResult<TrsearchResponse> trsearch(String tid, Long startTime, Long endTime) {
+        return terminalClient.trsearch(tid, startTime, endTime);
     }
 }
